@@ -947,11 +947,9 @@ require('lazy').setup({
     },
   },
 
-  { -- You can easily change to a different colorscheme.
-    -- Change the name of the colorscheme plugin below, and then
-    -- change the command in the config to whatever the name of that colorscheme is.
-    --
-    -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
+  { -- Colorscheme, following the macOS system appearance.
+    -- Other styles this theme ships are 'tokyonight-storm' and 'tokyonight-moon';
+    -- `:Telescope colorscheme` lists everything installed.
     'folke/tokyonight.nvim',
     priority = 1000, -- Make sure to load this before all the other start plugins.
     config = function()
@@ -962,10 +960,56 @@ require('lazy').setup({
         },
       }
 
-      -- Load the colorscheme here.
-      -- Like many other themes, this one has different styles, and you could load
-      -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-      vim.cmd.colorscheme 'tokyonight-night'
+      -- Follow the macOS system appearance, as wezterm.lua and tmux.conf do.
+      --
+      -- The scheme is named explicitly rather than going through `background`
+      -- and tokyonight's `light_style`, so the mapping reads the same way as
+      -- wezterm's scheme_for_appearance.
+      local function scheme_for_appearance(dark)
+        return dark and 'tokyonight-night' or 'tokyonight-day'
+      end
+
+      -- macOS stores no value at all for Light mode, so `defaults` exits
+      -- non-zero there; that is the signal, not an error worth reporting.
+      local function apply(out)
+        local scheme = scheme_for_appearance(out.code == 0 and vim.trim(out.stdout) == 'Dark')
+        if vim.g.colors_name ~= scheme then
+          vim.cmd.colorscheme(scheme)
+        end
+      end
+
+      local cmd = { 'defaults', 'read', '-g', 'AppleInterfaceStyle' }
+
+      if vim.fn.has 'mac' == 0 then
+        vim.cmd.colorscheme 'tokyonight-night'
+        return
+      end
+
+      -- Blocking on startup only, so the very first paint is already the right
+      -- colours instead of flashing the wrong ones.
+      apply(vim.system(cmd, { text = true }):wait())
+
+      local function sync()
+        vim.system(cmd, { text = true }, function(out)
+          vim.schedule(function()
+            apply(out)
+          end)
+        end)
+      end
+
+      -- Nothing pushes an appearance change to Neovim: the terminal would have
+      -- to report one (DEC mode 2031) and this WezTerm build does not. So
+      -- re-check at the moments it can have changed unnoticed -- regaining
+      -- focus, and waking from a suspend -- plus `:ThemeSync` to force it.
+      vim.api.nvim_create_autocmd({ 'FocusGained', 'VimResume' }, {
+        desc = 'Match the colorscheme to the macOS appearance',
+        group = vim.api.nvim_create_augroup('macos-appearance', { clear = true }),
+        callback = sync,
+      })
+
+      vim.api.nvim_create_user_command('ThemeSync', sync, {
+        desc = 'Re-check the macOS appearance and apply the matching colorscheme',
+      })
     end,
   },
 
