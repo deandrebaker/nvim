@@ -20,13 +20,24 @@ return {
         height = 15,
       }
 
-      terminal = Terminal:new(window)
-      local silent = { silent = true }
+      -- NOTE: `local` matters here. Without it this leaks a global named
+      --  `terminal`, which is why the old keymaps could be plain `:lua terminal:...`
+      --  command strings. Closures capture the upvalue instead, so nothing global
+      --  is needed and a typo becomes a load-time error rather than a silent no-op.
+      local terminal = Terminal:new(window)
 
-      vim.api.nvim_set_keymap('n', '<leader>t', ':lua terminal:toggle()<cr>', silent)
-      vim.api.nvim_set_keymap('n', '<leader>1', ':lua terminal:open(1)<cr>', silent)
-      vim.api.nvim_set_keymap('n', '<leader>2', ':lua terminal:open(2)<cr>', silent)
-      vim.api.nvim_set_keymap('n', '<leader>3', ':lua terminal:open(3)<cr>', silent)
+      -- NOTE: this lives under `<leader>t` (the `[T]oggle` group declared in
+      --  init.lua) rather than on `<leader>t` itself. A bare `<leader>t` mapping
+      --  shadows the whole group, including the LSP's `<leader>th` inlay hints.
+      vim.keymap.set('n', '<leader>tt', function()
+        terminal:toggle()
+      end, { silent = true, desc = '[T]oggle [T]erminal' })
+
+      for i = 1, 3 do
+        vim.keymap.set('n', '<leader>' .. i, function()
+          terminal:open(i)
+        end, { silent = true, desc = 'Open terminal ' .. i })
+      end
     end,
   },
   {

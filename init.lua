@@ -102,7 +102,7 @@ vim.g.have_nerd_font = true
 vim.o.number = true
 -- You can also add relative line numbers, to help with jumping.
 --  Experiment for yourself to see if you like it!
-vim.o.relativenumber = true
+vim.o.relativenumber = false
 
 -- Enable mouse mode, can be useful for resizing splits for example!
 vim.o.mouse = 'a'
@@ -673,11 +673,10 @@ require('lazy').setup({
         },
       }
 
-      -- LSP servers and clients are able to communicate to each other what features they support.
-      --  By default, Neovim doesn't support everything that is in the LSP specification.
-      --  When you add blink.cmp, luasnip, etc. Neovim now has *more* capabilities.
-      --  So, we create new capabilities with blink.cmp, and then broadcast that to the servers.
-      local capabilities = require('blink.cmp').get_lsp_capabilities()
+      -- NOTE: LSP servers and clients negotiate which features they support.
+      --  blink.cmp registers its extra capabilities globally via `vim.lsp.config('*', ...)`,
+      --  so there is nothing to merge in by hand here. Check what is live with:
+      --    :lua =vim.lsp.config['*'].capabilities.textDocument.completion
 
       -- Enable the following language servers
       --  Feel free to add/remove any LSPs that you want here. They will automatically be installed.
@@ -716,6 +715,31 @@ require('lazy').setup({
             },
           },
         },
+
+        -- Python is split across two servers: Pyright for types/completion,
+        -- Ruff for linting and import organizing. See the LspAttach autocmd
+        -- above, which turns off Pyright's hover in favor of Ruff's.
+        pyright = {
+          settings = {
+            pyright = {
+              -- Using Ruff's import organizer
+              disableOrganizeImports = true,
+            },
+            python = {
+              analysis = {
+                -- Ignore all files for analysis to exclusively use Ruff for linting
+                ignore = { '*' },
+              },
+            },
+          },
+        },
+        ruff = {},
+
+        gopls = {},
+        ts_ls = {},
+
+        -- NOTE: `rust_analyzer` is deliberately absent. rustaceanvim starts and
+        -- owns its own rust-analyzer; declaring it here would give you two.
       }
 
       -- Ensure the servers and tools above are installed
@@ -737,34 +761,28 @@ require('lazy').setup({
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
+      -- NOTE: mason-lspconfig v2 removed the `handlers` and `automatic_installation`
+      --  options. It is now purely a name translator (`lua_ls` <-> `lua-language-server`)
+      --  plus an auto-enable switch.
+      --
+      --  `automatic_enable` starts every server Mason has installed. We exclude
+      --  `rust_analyzer` because rustaceanvim already starts one; without this you
+      --  get two rust-analyzer processes on every Rust buffer.
       require('mason-lspconfig').setup {
         ensure_installed = {}, -- explicitly set to an empty table (Kickstart populates installs via mason-tool-installer)
-        automatic_installation = false,
-        handlers = {
-          function(server_name)
-            local server = servers[server_name] or {}
-            -- This handles overriding only values explicitly passed
-            -- by the server configuration above. Useful when disabling
-            -- certain features of an LSP (for example, turning off formatting for ts_ls)
-            server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
-            require('lspconfig')[server_name].setup(server)
-            require('lspconfig').pyright.setup {
-              settings = {
-                pyright = {
-                  -- Using Ruff's import organizer
-                  disableOrganizeImports = true,
-                },
-                python = {
-                  analysis = {
-                    -- Ignore all files for analysis to exclusively use Ruff for linting
-                    ignore = { '*' },
-                  },
-                },
-              },
-            }
-          end,
-        },
+        automatic_enable = { exclude = { 'rust_analyzer' } },
       }
+
+      -- Since Neovim 0.11, servers are configured through the built-in API:
+      --  * nvim-lspconfig ships the base recipe for each server in its `lsp/` directory
+      --  * `vim.lsp.config()` layers our overrides from `servers` on top of that recipe
+      --  * `vim.lsp.enable()` arms the server so it starts on a matching filetype
+      --  Inspect the merged result at any time with `:lua =vim.lsp.config.lua_ls`
+      --  or see everything that is running with `:checkhealth vim.lsp`.
+      for name, server in pairs(servers) do
+        vim.lsp.config(name, server)
+        vim.lsp.enable(name)
+      end
     end,
   },
 
