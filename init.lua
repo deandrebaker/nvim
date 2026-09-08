@@ -743,8 +743,8 @@ require('lazy').setup({
         --  composed bundle that eval_gemfile's the app's own Gemfile. That is how it
         --  reaches the project's RuboCop, and it installs the Rails add-on itself
         --  once it detects a Rails app, so the app's Gemfile needs no entry for any
-        --  of this. Install the gem with `gem install ruby-lsp` -- see the NOTE by
-        --  `ensure_installed` below for why Mason must not supply it.
+        --  of this. See the NOTE by `ensure_installed` below for how to install the
+        --  gem, and for why Mason must not supply it.
         ruby_lsp = {},
 
         -- Stimulus controller and action completion inside Rails views. Upstream
@@ -780,8 +780,7 @@ require('lazy').setup({
       --  `GEM_PATH=<mason package dir>:$GEM_PATH` into the server's environment, and
       --  ruby-lsp re-execs itself through `bundle exec`, so that leaked GEM_PATH
       --  follows it into Bundler and corrupts resolution of the project's own
-      --  bundle. Install it against the system Ruby instead:
-      --    gem install ruby-lsp
+      --  bundle. Install it as an ordinary gem instead.
       local ensure_installed = vim.tbl_filter(function(name)
         return name ~= 'ruby_lsp'
       end, vim.tbl_keys(servers or {}))
