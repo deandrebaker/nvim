@@ -780,7 +780,8 @@ require('lazy').setup({
       --  `GEM_PATH=<mason package dir>:$GEM_PATH` into the server's environment, and
       --  ruby-lsp re-execs itself through `bundle exec`, so that leaked GEM_PATH
       --  follows it into Bundler and corrupts resolution of the project's own
-      --  bundle. Install it as an ordinary gem instead.
+      --  bundle. Install it as an ordinary gem instead: `gem install ruby-lsp` per
+      --  rbenv version, each followed by `rbenv rehash`.
       local ensure_installed = vim.tbl_filter(function(name)
         return name ~= 'ruby_lsp'
       end, vim.tbl_keys(servers or {}))
