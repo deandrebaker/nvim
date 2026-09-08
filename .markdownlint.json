@@ -1,0 +1,35 @@
+{
+  "//": "Prettier formats Markdown on save (see formatters_by_ft in init.lua), so every rule turned off below describes something Prettier has already decided. Left on, they report Prettier's own output as violations. Rules about content -- heading structure, bare URLs, missing alt text, broken link fragments -- stay enabled. nvim-lint passes this file explicitly via --config; see lua/kickstart/plugins/lint.lua for why.",
+
+  "default": true,
+
+  "heading-style": false,
+  "no-missing-space-atx": false,
+  "no-multiple-space-atx": false,
+  "no-missing-space-closed-atx": false,
+  "no-multiple-space-closed-atx": false,
+  "blanks-around-headings": false,
+  "heading-start-left": false,
+
+  "ul-style": false,
+  "list-indent": false,
+  "ul-indent": false,
+  "ol-prefix": false,
+  "list-marker-space": false,
+  "blanks-around-lists": false,
+
+  "no-trailing-spaces": false,
+  "no-hard-tabs": false,
+  "no-multiple-blanks": false,
+  "line-length": false,
+  "single-trailing-newline": false,
+  "no-multiple-space-blockquote": false,
+
+  "code-block-style": false,
+  "code-fence-style": false,
+  "blanks-around-fences": false,
+
+  "hr-style": false,
+  "emphasis-style": false,
+  "strong-style": false
+}

@@ -47,4 +47,43 @@ return {
     end,
   },
   { 'christoomey/vim-tmux-navigator' },
+
+  {
+    -- Rails project navigation: `:A` swaps between a file and its test, the
+    --  `:Emodel`/`:Econtroller`/`:Eview` family opens Rails files by name, and `gf`
+    --  follows partial renders and route helpers.
+    'tpope/vim-rails',
+    -- NOTE: deliberately not lazy-loaded on the `ruby` filetype. vim-rails detects
+    --  the project as a buffer loads, and its `:E*` commands are most useful
+    --  *before* any Ruby file is open -- loading on filetype would make them
+    --  missing at exactly the moment you reach for them.
+    lazy = false,
+  },
+
+  {
+    -- Test runner. It picks the runner from the file itself, so `spec/` goes to
+    --  RSpec and `test/` to `rails test`, and it prefixes `bundle exec` when the
+    --  project has a Gemfile. Nothing here is Ruby-specific -- the same keymaps run
+    --  Go, Python and Jest tests in those projects.
+    'vim-test/vim-test',
+    dependencies = { 'tpope/vim-rails' }, -- supplies the Rails-aware test paths
+    -- NOTE: these sit under `<leader>T`, not `<leader>t`, which is already the
+    --  `[T]oggle` group (`<leader>tt` terminal, `<leader>th` inlay hints).
+    keys = {
+      { '<leader>Tn', '<cmd>TestNearest<cr>', desc = '[T]est [N]earest' },
+      { '<leader>Tf', '<cmd>TestFile<cr>', desc = '[T]est [F]ile' },
+      { '<leader>Ts', '<cmd>TestSuite<cr>', desc = '[T]est [S]uite' },
+      { '<leader>Tl', '<cmd>TestLast<cr>', desc = '[T]est [L]ast' },
+      { '<leader>Tv', '<cmd>TestVisit<cr>', desc = '[T]est [V]isit last test file' },
+    },
+    config = function()
+      -- Run in a Neovim terminal split. Deliberately not the `vimux` or `dispatch`
+      --  strategy: both pull in another plugin, and this keeps the runner
+      --  self-contained even though vim-tmux-navigator is already installed.
+      vim.g['test#strategy'] = 'neovim'
+      vim.g['test#neovim#term_position'] = 'botright 15'
+      -- Keep the previous run on screen instead of clearing it away.
+      vim.g['test#preserve_screen'] = 1
+    end,
+  },
 }

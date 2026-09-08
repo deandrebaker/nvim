@@ -14,6 +14,37 @@ return {
         typescriptreact = { 'eslint_d' },
         -- NOTE: no `python` entry on purpose. The Ruff language server already
         --  publishes these diagnostics, so linting here would duplicate every one.
+        --
+        -- NOTE: no `ruby` or `eruby` entry either, for the same reason -- ruby-lsp
+        --  runs the project's own bundled RuboCop and publishes its offences.
+      }
+
+      -- markdownlint-cli resolves `.markdownlint.json` from the current working
+      --  directory only. It does not walk up to the project root, and `--stdin`
+      --  leaves it no file path to search from anyway, so a config file on its own
+      --  would apply only when Neovim happened to be cd'd to the right directory.
+      --  Pass one explicitly instead: the project's own when it has one, and
+      --  otherwise the fallback in this repo, which turns off the rules Prettier
+      --  already owns -- Prettier formats Markdown on save, so those rules would
+      --  otherwise fire on Prettier's own output.
+      local markdownlint_fallback = vim.fs.joinpath(vim.fn.stdpath 'config', '.markdownlint.json')
+      lint.linters.markdownlint.args = {
+        '--stdin',
+        '--config',
+        function()
+          local bufname = vim.api.nvim_buf_get_name(0)
+          local project_config = vim.fs.find({
+            '.markdownlint.json',
+            '.markdownlint.jsonc',
+            '.markdownlint.yaml',
+            '.markdownlint.yml',
+          }, {
+            upward = true,
+            path = bufname ~= '' and vim.fs.dirname(bufname) or vim.fn.getcwd(),
+            stop = vim.uv.os_homedir(),
+          })[1]
+          return project_config or markdownlint_fallback
+        end,
       }
 
       -- To allow other plugins to add linters to require('lint').linters_by_ft,

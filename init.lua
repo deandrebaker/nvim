@@ -346,6 +346,7 @@ require('lazy').setup({
       spec = {
         { '<leader>s', group = '[S]earch' },
         { '<leader>t', group = '[T]oggle' },
+        { '<leader>T', group = '[T]est' },
         { '<leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } },
       },
     },
@@ -735,8 +736,31 @@ require('lazy').setup({
         gopls = {},
         ts_ls = {},
 
+        -- Ruby: `ruby_lsp` owns diagnostics, formatting and Rails features by
+        --  itself -- the same one-server-per-concern split used for Python above.
+        --  On startup it re-execs itself as
+        --  `BUNDLE_GEMFILE=.ruby-lsp/Gemfile bundle exec ruby-lsp`, running out of a
+        --  composed bundle that eval_gemfile's the app's own Gemfile. That is how it
+        --  reaches the project's RuboCop, and it installs the Rails add-on itself
+        --  once it detects a Rails app, so the app's Gemfile needs no entry for any
+        --  of this. Install the gem with `gem install ruby-lsp` -- see the NOTE by
+        --  `ensure_installed` below for why Mason must not supply it.
+        ruby_lsp = {},
+
+        -- Stimulus controller and action completion inside Rails views. Upstream
+        --  also claims `ruby`, `html`, `php` and `blade`; narrowed to `eruby` so it
+        --  stays out of every .rb and .html buffer in non-Rails projects.
+        stimulus_ls = { filetypes = { 'eruby' } },
+
+        -- Class name completion in ERB, which upstream already lists among its
+        --  filetypes. It only starts once a Tailwind config is found, so it costs
+        --  nothing in projects that do not use Tailwind.
+        tailwindcss = {},
+
         -- NOTE: `rust_analyzer` is deliberately absent. rustaceanvim starts and
         -- owns its own rust-analyzer; declaring it here would give you two.
+        -- It resolves that binary off $PATH, so see the rustup note by
+        -- `ensure_installed` below for where the binary has to come from.
       }
 
       -- Ensure the servers and tools above are installed
@@ -752,16 +776,31 @@ require('lazy').setup({
       --
       -- You can add other tools here that you want Mason to install
       -- for you, so that they are available from within Neovim.
-      local ensure_installed = vim.tbl_keys(servers or {})
+      -- NOTE: `ruby_lsp` is filtered out on purpose. Mason's gem shim exports
+      --  `GEM_PATH=<mason package dir>:$GEM_PATH` into the server's environment, and
+      --  ruby-lsp re-execs itself through `bundle exec`, so that leaked GEM_PATH
+      --  follows it into Bundler and corrupts resolution of the project's own
+      --  bundle. Install it against the system Ruby instead:
+      --    gem install ruby-lsp
+      local ensure_installed = vim.tbl_filter(function(name)
+        return name ~= 'ruby_lsp'
+      end, vim.tbl_keys(servers or {}))
       vim.list_extend(ensure_installed, {
         'stylua', -- Used to format Lua code
         'prettier', -- Formats JS/TS, CSS, HTML, JSON, YAML and Markdown
         'gofumpt', -- Stricter gofmt
+        'erb-formatter', -- Formats ERB views, see the `eruby` entry in conform
         'eslint_d', -- JS/TS linting, see kickstart.plugins.lint
         'golangci-lint', -- Go linting
-        'markdownlint', -- Markdown linting
+        'markdownlint', -- Markdown linting, configured by .markdownlint.json
         -- NOTE: rustfmt is intentionally not here; it ships with the Rust
-        --  toolchain via rustup rather than Mason.
+        --  toolchain via rustup rather than Mason. Same for rust-analyzer, which
+        --  rustaceanvim looks up on $PATH: install it with
+        --  `rustup component add rust-analyzer` so it stays locked to the same
+        --  toolchain as rust-src. Mason must not hold a second copy, because
+        --  mason.nvim prepends its own bin directory to $PATH -- a Mason
+        --  rust-analyzer silently shadows rustup's and then drifts out of sync
+        --  with the toolchain, which is what breaks proc-macro expansion.
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
@@ -833,6 +872,13 @@ require('lazy').setup({
 
         rust = { 'rustfmt' },
         go = { 'gofumpt' },
+
+        -- NOTE: no `ruby` entry on purpose. Ruby falls through to the
+        --  `lsp_format = 'fallback'` branch above, which means ruby-lsp running the
+        --  app's own bundled RuboCop, so formatting always follows the project's
+        --  .rubocop.yml. Only the ERB markup wrapped around it needs a formatter of
+        --  its own.
+        eruby = { 'erb_format' },
 
         javascript = { 'prettier' },
         javascriptreact = { 'prettier' },
@@ -1057,9 +1103,17 @@ require('lazy').setup({
     'nvim-treesitter/nvim-treesitter',
     build = ':TSUpdate',
     main = 'nvim-treesitter.configs', -- Sets main module to use for opts
+    dependencies = {
+      -- Closes `def`, `do`, `if` and friends with a matching `end` as you type.
+      --  It reads the parse tree rather than matching on the line, so it also
+      --  covers Lua and Bash and knows when an `end` is already there.
+      'RRethy/nvim-treesitter-endwise',
+    },
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
     opts = {
-      ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' },
+      -- NOTE: `embedded_template` is the parser for ERB. Neovim already maps
+      --  *.html.erb to the `eruby` filetype on its own, so no ftdetect is needed.
+      ensure_installed = { 'bash', 'c', 'diff', 'embedded_template', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'ruby', 'vim', 'vimdoc' },
       -- Autoinstall languages that are not installed
       auto_install = true,
       highlight = {
@@ -1070,6 +1124,7 @@ require('lazy').setup({
         additional_vim_regex_highlighting = { 'ruby' },
       },
       indent = { enable = true, disable = { 'ruby' } },
+      endwise = { enable = true },
     },
     -- There are additional nvim-treesitter modules that you can use to interact
     -- with nvim-treesitter. You should go explore a few and see what interests you:
