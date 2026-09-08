@@ -1103,6 +1103,55 @@ require('lazy').setup({
     'nvim-treesitter/nvim-treesitter',
     build = ':TSUpdate',
     main = 'nvim-treesitter.configs', -- Sets main module to use for opts
+    -- NOTE: works around a bug in nvim-treesitter's `master` branch, which is now
+    --  archived and will not be fixed upstream. Its query predicate and directive
+    --  handlers (query_predicates.lua) read `match[capture_id]` expecting a single
+    --  TSNode, and register themselves with an `all = false` compatibility shim to
+    --  ask for that shape. Neovim 0.12 removed that option, so handlers always get
+    --  `table<integer, TSNode[]>` -- a list -- and the plugin's handlers then call
+    --  node methods on a plain table:
+    --    treesitter.lua:197: attempt to call method 'range' (a nil value)
+    --  That surfaces as a decoration provider error on any markdown fenced code
+    --  block with a language tag (so on every LSP hover, `K`, whose float is a
+    --  markdown buffer) via `#set-lang-from-info-string!`, and on any Ruby heredoc
+    --  via `#downcase!`. Rather than patch each handler, this converts the match
+    --  back to the shape they expect, and only for handlers that come from
+    --  nvim-treesitter itself so correctly written ones elsewhere are untouched.
+    --  Remove this once the config moves to the `main` branch.
+    init = function()
+      local query = vim.treesitter.query
+
+      local function owned_by_nvim_treesitter(handler)
+        local source = debug.getinfo(handler, 'S').source
+        return source:find 'nvim%-treesitter' ~= nil
+      end
+
+      -- Collapse each capture's node list down to a single node, which is what the
+      --  old `all = false` behaviour handed these handlers.
+      local function with_single_node_match(handler)
+        return function(match, ...)
+          local collapsed = {}
+          for id, nodes in pairs(match) do
+            if type(nodes) == 'table' then
+              collapsed[id] = nodes[#nodes]
+            else
+              collapsed[id] = nodes
+            end
+          end
+          return handler(collapsed, ...)
+        end
+      end
+
+      for _, name in ipairs { 'add_directive', 'add_predicate' } do
+        local register = query[name]
+        query[name] = function(directive_name, handler, opts)
+          if type(handler) == 'function' and owned_by_nvim_treesitter(handler) then
+            handler = with_single_node_match(handler)
+          end
+          return register(directive_name, handler, opts)
+        end
+      end
+    end,
     dependencies = {
       -- Closes `def`, `do`, `if` and friends with a matching `end` as you type.
       --  It reads the parse tree rather than matching on the line, so it also
